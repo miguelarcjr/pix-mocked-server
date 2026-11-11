@@ -451,6 +451,9 @@ export class PSP {
 
         const { status, ...data } = itm.data;
         const patch: any = { ...data };
+        if (data.calendario) {
+            patch.calendario = { ...curr.calendario, ...data.calendario };
+        }
         if (status) {
             patch.status = status;
             patch.atualizacao = [...(curr.atualizacao || []), { status, data: now() }];
