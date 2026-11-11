@@ -941,11 +941,13 @@ export class PSP {
         if (!lote) { return null; }
 
         const cobsv = [...lote.cobsv];
+        const fora = (data.cobsv || []).find(cobv => !cobsv.some(c => c.txid === cobv?.txid));
+        if (fora) {
+            throw new PixError(`A cobrança ${fora?.txid} não pertence ao lote.`, [{ propriedade: 'lotecobv.cobsv.txid', razao: 'Somente cobranças do lote podem ser alteradas.' }]);
+        }
+
         for (const cobv of data.cobsv || []) {
             const idx = cobsv.findIndex(c => c.txid === cobv?.txid);
-            if (idx < 0) {
-                throw new PixError(`A cobrança ${cobv?.txid} não pertence ao lote.`, [{ propriedade: 'lotecobv.cobsv.txid', razao: 'Somente cobranças do lote podem ser alteradas.' }]);
-            }
             const editar = cobsv[idx].status === StatusCobVLote.Criada;
             cobsv[idx] = await this.processarCobVLote(IdOwner, cobv, editar);
         }
