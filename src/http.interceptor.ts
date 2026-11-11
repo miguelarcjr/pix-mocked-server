@@ -28,6 +28,18 @@ export class HttpInterceptor implements NestInterceptor {
         503: () => (this.handleError(`https://pix.bcb.gov.br/api/v2/error/ServicoIndisponivel`, 'Serviço Indisponível', `Serviço não está disponível no momento. Serviço solicitado pode estar em manutenção ou fora da janela de funcionamento.`, 503, [])),
     }
 
+    private static ENDPOINTS: { [endpoint: string]: { prefix: string, detail: string } } = {
+        cob: { prefix: 'Cob', detail: 'A cobrança não respeita o schema.' },
+        cobv: { prefix: 'CobV', detail: 'A cobrança não respeita o schema.' },
+        cobr: { prefix: 'CobR', detail: 'A cobrança recorrente não respeita o schema.' },
+        loc: { prefix: 'Location', detail: 'O Location não respeita o schema.' },
+        rec: { prefix: 'Rec', detail: 'A recorrência não respeita o schema.' },
+        solicrec: { prefix: 'SolicRec', detail: 'A solicitação de recorrência não respeita o schema.' },
+        lotecobv: { prefix: 'LoteCobV', detail: 'O lote de cobranças não respeita o schema.' },
+        pix: { prefix: 'Pix', detail: 'A requisição não respeita o schema.' },
+        webhook: { prefix: 'Webhook', detail: 'O webhook não respeita o schema.' },
+    }
+
     intercept(context: ExecutionContext, next: CallHandler): Observable<void> {
         const request = context.switchToHttp().getRequest();
         const token = request.headers['mocked-token'];
@@ -39,56 +51,41 @@ export class HttpInterceptor implements NestInterceptor {
 
             return next.handle().pipe(
                 tap((res) => {
-                    if ((request.method === 'GET' || request.method === 'PATCH' || request.method === 'DELETE') && !res) {
+                    if (((request.method === 'GET' || request.method === 'PATCH' || request.method === 'DELETE') && !res) || res === null || res === undefined) {
                         throw new NotFoundException();
                     }
                     else {    
                         return res;
                     }
                 }),
-                catchError((err: HttpException): Observable<any> => {
+                catchError((err: any): Observable<any> => {
+                    const endpoint = (request['url'] as string).split('?')[0].split('/')[1];
+                    const { prefix, detail } = HttpInterceptor.ENDPOINTS[endpoint] || { prefix: '', detail: 'A requisição não respeita o schema.' };
+
+                    //Erros de regra de negócio lançados pelo serviço (PixError / Error) => 400
+                    if (!(err instanceof HttpException)) {
+                        if (!err?.message) {
+                            console.log(err);
+                            throw new InternalServerErrorException(this.ServerErrorTypes[503]());
+                        }
+                        throw new BadRequestException(this.ServerErrorTypes[400](prefix, err.message, err.violacoes || []));
+                    }
+
                     const statusHandle = {
                         400: () => {
-                            const endpoint = request['url'].split('/')[1];
-
-                            const handle: (msgs: any) => Observable<any> = {
-                                'cob': (msgs: { [key: string]: string }) => {
-                                    const violacoes = Object.keys(msgs).map((key: string) => ({ propriedade: `${endpoint}.${key}`, razao: msgs[key].replace('$$', `${endpoint}.${key}`) }));
-                                    throw new BadRequestException(this.ServerErrorTypes[err.getStatus()]('Cob', "A cobrança não respeita o schema.", violacoes));
-                                },
-                                'cobv': (msgs: { [key: string]: string }) => {
-                                    const violacoes = Object.keys(msgs).map((key: string) => ({ propriedade: `${endpoint}.${key}`, razao: msgs[key].replace('$$', `${endpoint}.${key}`) }));
-                                    throw new BadRequestException(this.ServerErrorTypes[err.getStatus()]('CobV', "A cobrança não respeita o schema.", violacoes));
-                                },
-                                'loc': (msgs: { [key: string]: string }) => {
-                                    const violacoes = Object.keys(msgs).map((key: string) => ({ propriedade: `${endpoint}.${key}`, razao: msgs[key].replace('$$', `${endpoint}.${key}`) }));
-                                    throw new BadRequestException(this.ServerErrorTypes[err.getStatus()]('Location', "O Location não respeita o schema.", violacoes));
-                                },
-
-                                'rec': (msgs: { [key: string]: string }) => {
-                                    const violacoes = Object.keys(msgs).map((key: string) => ({ propriedade: `${endpoint}.${key}`, razao: msgs[key].replace('$$', `${endpoint}.${key}`) }));
-                                    throw new BadRequestException(this.ServerErrorTypes[err.getStatus()]('Rec', "A recorrência não respeita o schema.", violacoes));
-                                },
-                                
-                            }[endpoint];
-
-                            //console.log(err.getResponse().valueOf())
-                            return handle(err.getResponse().valueOf()); //return handle(JSON.parse(err.getResponse().valueOf()['message']));
+                            const msgs = err.getResponse().valueOf();
+                            const violacoes = typeof msgs === 'object' && !Array.isArray(msgs['message'])
+                                ? Object.keys(msgs).map((key: string) => ({ propriedade: `${endpoint}.${key}`, razao: `${msgs[key]}`.replace('$$', `${endpoint}.${key}`) }))
+                                : [];
+                            throw new BadRequestException(this.ServerErrorTypes[400](prefix, detail, violacoes));
                         },
                         404: () => {
-                            throw new NotFoundException(this.ServerErrorTypes[err.getStatus()]())
-                        },
-                        500: () => {
-                            console.log( err );
-                            throw new InternalServerErrorException(
-                                this.ServerErrorTypes[err.getStatus?.() || 500]
-                            )
+                            throw new NotFoundException(this.ServerErrorTypes[404]())
                         }
-                    }[err.getStatus?.() || 500]
+                    }[err.getStatus()]
 
+                    if (!statusHandle) { throw err; }
                     return statusHandle();
-
-
                 })
             );
         }

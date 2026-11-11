@@ -1,5 +1,5 @@
 import { IsNotEmpty, IsNotEmptyObject, IsNumberString, ValidateNested } from "class-validator"
-import { Chave, ICriacao, ValidadeVencimento, IInfoAdicional, Pessoa, PixID, ModalidadeAlteracao, Situacao, PixRevisao, IJuros, IDesconto, IMulta } from "../models"
+import { RetiradaPix, Chave, ICriacao, ValidadeVencimento, IInfoAdicional, Pessoa, PixID, ModalidadeAlteracao, Situacao, PixRevisao, IJuros, IDesconto, IMulta } from "../models"
 import { Type } from "class-transformer"
 import { IntersectionType } from '@nestjs/swagger';
 import { IsCNPJValid,  IsCPFValid, IsDICTExists, IsDICTValid, MinStringNumber } from "../../../validators/custom-validators";
@@ -23,7 +23,9 @@ export class Alteracao {
 }
 
 export class Retirada {
-    retirada?: any
+    @ValidateNested()
+    @Type(() => RetiradaPix)
+    retirada?: RetiradaPix
 }
 
 

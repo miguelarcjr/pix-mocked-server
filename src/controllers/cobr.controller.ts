@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Header, Headers, Param, Patch, Post, Put, Query, Req, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Patch, Post, Put, Query, UseInterceptors } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { PSP } from '../core/app/psp';
 import { HttpInterceptor } from '../http.interceptor';
 import { CobRGetFilter, CobRPatchRequest, CobRPutRequest } from '../core/app/models/cobr';
@@ -6,6 +7,7 @@ import { PixRequest } from '../core/app/models';
 import { randomUUID } from 'crypto';
 
 @Controller("cobr")
+@ApiTags("cobr")
 @UseInterceptors(HttpInterceptor)
 export class CobRController {
   constructor(private readonly pspService: PSP) { }
@@ -14,7 +16,7 @@ export class CobRController {
   async add(@Body() data: CobRPutRequest, @Param("txid") txid, @Headers() headers) {
     const IdOwner = headers["IdOwner"];
     const itm: PixRequest<CobRPutRequest> = { IdOwner, txid, data }
-    return await null//this.pspService.addCob(itm);
+    return await this.pspService.addCobR(itm);
   }
 
   @Post()
@@ -26,37 +28,27 @@ export class CobRController {
   }
 
   @Post(":txid/retentativa/:data")
-  async createRetentativa(@Body() data: CobRPutRequest, @Param("txid") txid, @Headers() headers) {
+  async createRetentativa(@Param("txid") txid, @Param("data") data: string, @Headers() headers) {
     const IdOwner = headers["IdOwner"];
-    const itm: PixRequest<CobRPutRequest> = { IdOwner, txid, data }
-    return await this.pspService.addCobR(itm);
+    return await this.pspService.addRetentativaCobR({ IdOwner, txid, data });
   }
 
-
   @Get(":txid")
-  async read(@Param("txid") txid, @Headers() headers, @Query() qry?) {
+  async read(@Param("txid") txid, @Headers() headers) {
     const IdOwner = headers["IdOwner"];
-    const itm = await this.pspService.readCob({ IdOwner, txid }, qry?.revisao);
-    return itm;
+    return await this.pspService.readCobR({ IdOwner, txid });
   }
 
   @Get()
   list(@Headers() headers, @Query() qry: CobRGetFilter) {
     const IdOwner = headers["IdOwner"];
-    return this.pspService.listCob({ ...qry, IdOwner });
+    return this.pspService.listCobR({ ...qry, IdOwner });
   }
 
   @Patch(":txid")
   edit(@Body() data: CobRPatchRequest, @Param("txid") txid, @Headers() headers) {
     const IdOwner = headers["IdOwner"];
     const itm: PixRequest<CobRPatchRequest> = { IdOwner, txid, data }
-    return this.pspService.editCob(itm);
+    return this.pspService.editCobR(itm);
   }
-
-  @Get(":txid")
-  remove(@Param("txid") txid, @Headers() headers) {
-    const IdOwner = headers["IdOwner"];
-    return this.pspService.removeCob({ IdOwner, txid });
-  }
-
 }

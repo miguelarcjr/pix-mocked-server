@@ -1,4 +1,6 @@
-import { IsDateString, IsEmail, IsNotEmpty, MaxLength, Min } from "class-validator"
+import "reflect-metadata"
+import { IsDateString, IsEmail, IsIn, IsNotEmpty, Matches, MaxLength, Min, ValidateNested } from "class-validator"
+import { Type } from "class-transformer"
 import { IsCNPJValid, IsCPFValid, IsDICTExists, IsDICTValid, NotPast } from "../../validators/custom-validators"
 
 
@@ -206,4 +208,34 @@ export interface IPaginator {
             quantidadeTotalDeItens: number
         }
     }
+}
+
+export enum ModalidadeAgente {
+    EstabelecimentoComercial = "AGTEC",
+    OutraEspeciePJ = "AGTOT",
+    /** Em desuso. Utilizar AGFSS. */
+    PrestadorServicoSaque = "AGPSS",
+    FacilitadorServicoSaque = "AGFSS"
+}
+
+export const VALOR_PATTERN = /^\d{1,10}\.\d{2}$/;
+
+export class DetalheRetirada {
+    @Matches(VALOR_PATTERN, { message: 'O campo $$ não respeita o schema.' })
+    valor: string
+    @IsIn([0, 1], { message: 'O campo $$ não respeita o schema.' })
+    modalidadeAlteracao?: ModalidadeAlteracao
+    @IsIn(Object.values(ModalidadeAgente), { message: 'O campo $$ não respeita o schema.' })
+    modalidadeAgente: ModalidadeAgente
+    @Matches(/^[0-9A-Z]{8}$/, { message: 'O campo $$ não respeita o schema.' })
+    prestadorDoServicoDeSaque: string
+}
+
+export class RetiradaPix {
+    @ValidateNested()
+    @Type(() => DetalheRetirada)
+    saque?: DetalheRetirada
+    @ValidateNested()
+    @Type(() => DetalheRetirada)
+    troco?: DetalheRetirada
 }

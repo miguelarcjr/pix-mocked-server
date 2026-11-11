@@ -171,3 +171,38 @@ export const errorFormatter = (errors: ValidationError[], errMessage?: any, pare
 
     return message;
 }
+export const LOCATION_DOMAIN = () => process.env.PIX_LOCATION_DOMAIN || 'pix.example.com';
+export const buildLocation = (uuid: string) => `${LOCATION_DOMAIN()}/qr/${uuid}`;
+
+const ALNUM = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+export const randomAlnum = (len: number) => Array.from({ length: len }, () => ALNUM[Math.floor(Math.random() * ALNUM.length)]).join('');
+
+//Formato BACEN: [prefixo(1)][ISPB(8)][AAAAMMDDHHmm(12)][sequencial(11)] = 32 caracteres
+export const genEndToEndId = (ispb: string, prefixo: 'E' | 'D' = 'E') =>
+    `${prefixo}${(ispb || '00000000').padStart(8, '0').substring(0, 8)}${new Date().toJSON().replace(/\D/g, '').substring(0, 12)}${randomAlnum(11)}`;
+
+export interface IPaginacaoFiltro { paginaAtual?: number | string, itensPorPagina?: number | string }
+
+export const paginate = <T>(lista: T[], filtro: { inicio?: string, fim?: string, paginacao?: IPaginacaoFiltro }) => {
+    const paginaAtual = Number(filtro.paginacao?.paginaAtual) || 0;
+    const itensPorPagina = Number(filtro.paginacao?.itensPorPagina) || 100;
+    const ini = paginaAtual * itensPorPagina;
+    return {
+        parametros: {
+            inicio: filtro.inicio,
+            fim: filtro.fim,
+            paginacao: {
+                paginaAtual,
+                itensPorPagina,
+                quantidadeDePaginas: Math.ceil(lista.length / itensPorPagina),
+                quantidadeTotalDeItens: lista.length
+            }
+        },
+        itens: lista.slice(ini, ini + itensPorPagina)
+    };
+}
+
+export const inPeriod = (data: string, inicio?: string, fim?: string) => {
+    const d = new Date(data);
+    return (!inicio || d >= new Date(inicio)) && (!fim || d <= new Date(fim));
+}

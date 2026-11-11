@@ -79,8 +79,9 @@ describe('CobController', () => {
   describe('REMOVE', () => {
     it('success', async () => {
       await ctrl.add({ chave, valor: { original: "1.00" } }, txid, { IdOwner });
-      await expect(ctrl.remove(txid, { IdOwner })).resolves.toBeTruthy();
-      await expect(ctrl.read(txid, { IdOwner })).resolves.toBeUndefined();
+      await expect(ctrl.edit({ status: Situacao.Removida }, txid, { IdOwner })).resolves.toMatchObject({ status: Situacao.Removida, revisao: 1 });
+      await expect(ctrl.read(txid, { IdOwner })).resolves.toMatchObject({ status: Situacao.Removida });
+      await expect(ctrl.edit({ solicitacaoPagador: 'x' }, txid, { IdOwner })).resolves.toBeNull();
     });
 
 

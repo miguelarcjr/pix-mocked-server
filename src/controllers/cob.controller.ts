@@ -1,4 +1,6 @@
-import { Body, Controller, Get, Header, Headers, Param, Patch, Post, Put, Query, Req, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Patch, Post, Put, Query, UseInterceptors } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
+import { SimularPagamentoRequest } from '../core/app/models/pix';
 import { PSP } from '../core/app/psp';
 import { HttpInterceptor } from '../http.interceptor';
 import { CobGetFilter, CobPatchRequest, CobPutRequest } from '../core/app/models/cob';
@@ -6,6 +8,7 @@ import { PixRequest } from '../core/app/models';
 import { randomUUID } from 'crypto';
 
 @Controller("cob")
+@ApiTags("cob")
 @UseInterceptors(HttpInterceptor)
 export class CobController {
   constructor(private readonly pspService: PSP) { }
@@ -45,10 +48,12 @@ export class CobController {
     return this.pspService.editCob(itm);
   }
 
-  @Get(":txid")
-  remove(@Param("txid") txid, @Headers() headers) {
+  /** Exclusivo do mock: simula o pagamento da cobrança (ATIVA -> CONCLUIDA), gerando o Pix recebido. */
+  @Post(":txid/simular-pagamento")
+  @ApiTags("Mock")
+  async simularPagamento(@Body() data: SimularPagamentoRequest, @Param("txid") txid, @Headers() headers) {
     const IdOwner = headers["IdOwner"];
-    return this.pspService.removeCob({ IdOwner, txid });
+    return await this.pspService.simularPagamento({ IdOwner, txid }, data);
   }
 
 }

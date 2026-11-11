@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { PSP } from "../../../src/core/app/psp"
 import { MemoryDB } from "../../../src/libs/fakedb";
 import { correntistas } from '../../../src/data/db.json'
-import { ModalidadeAlteracao, Situacao, TipoCob } from "../../../src/core/app/models";
+import { ModalidadeAgente, ModalidadeAlteracao, Situacao, TipoCob } from "../../../src/core/app/models";
 import { MESSAGES } from "../../../src/libs/messages";
 describe("PSP", () => {
 
@@ -37,7 +37,32 @@ describe("PSP", () => {
     describe('COB', () => {
         describe("add", () => {
             it('retirada', async () => {
-                await expect(psp.addCob({ IdOwner, txid, data: { chave, valor: { original: "10.00", retirada: {  } } } })).rejects.toThrow('NÃO IMPLEMENTADO')
+                await expect(psp.addCob({ IdOwner, txid, data: { chave, valor: { original: "10.00", retirada: {  } } } })).rejects.toThrow('exatamente um dos objetos saque ou troco')
+            });
+            const saque = { valor: "5.00", modalidadeAgente: ModalidadeAgente.EstabelecimentoComercial, prestadorDoServicoDeSaque: "12345678" };
+            it('retirada.saque: success', async () => {
+                await expect(psp.addCob({ IdOwner, txid, data: { chave, valor: { original: "0.00", retirada: { saque } } } })).resolves.toMatchObject({ txid, valor: { original: "0.00", retirada: { saque: { ...saque, modalidadeAlteracao: 0 } } }, status: Situacao.Ativa })
+            });
+            it('retirada.saque: original > 0', async () => {
+                await expect(psp.addCob({ IdOwner, txid, data: { chave, valor: { original: "1.00", retirada: { saque } } } })).rejects.toThrow('deve ser 0.00 em um Pix Saque')
+            });
+            it('retirada.troco: success', async () => {
+                await expect(psp.addCob({ IdOwner, txid, data: { chave, valor: { original: "10.00", retirada: { troco: saque } } } })).resolves.toMatchObject({ valor: { original: "10.00", retirada: { troco: saque } } })
+            });
+            it('retirada.troco: original = 0', async () => {
+                await expect(psp.addCob({ IdOwner, txid, data: { chave, valor: { original: "0.00", retirada: { troco: saque } } } })).rejects.toThrow('deve ser maior que 0.00 em um Pix Troco')
+            });
+            it('retirada.troco: modalidadeAgente AGFSS', async () => {
+                await expect(psp.addCob({ IdOwner, txid, data: { chave, valor: { original: "10.00", retirada: { troco: { ...saque, modalidadeAgente: ModalidadeAgente.FacilitadorServicoSaque } } } } })).rejects.toThrow('modalidadeAgente não respeita o schema')
+            });
+            it('retirada: saque e troco', async () => {
+                await expect(psp.addCob({ IdOwner, txid, data: { chave, valor: { original: "10.00", retirada: { troco: saque, saque } } } })).rejects.toThrow('exatamente um dos objetos')
+            });
+            it('retirada: modalidadeAlteracao=1', async () => {
+                await expect(psp.addCob({ IdOwner, txid, data: { chave, valor: { original: "10.00", modalidadeAlteracao: 1, retirada: { troco: saque } } } })).rejects.toThrow('modalidadeAlteracao deve ser 0')
+            });
+            it('retirada: prestadorDoServicoDeSaque inválido', async () => {
+                await expect(psp.addCob({ IdOwner, txid, data: { chave, valor: { original: "10.00", retirada: { troco: { ...saque, prestadorDoServicoDeSaque: "abc" } } } } })).rejects.toThrow('prestadorDoServicoDeSaque não respeita o schema')
             });
             it('success', async () => {
                 await expect(psp.addCob({ IdOwner, txid, data: { chave, valor: { original: "10.00" } } })).resolves.toMatchObject({ txid, revisao: 0, chave, valor: { original: "10.00", modalidadeAlteracao: ModalidadeAlteracao.NaoEditavel }, status: Situacao.Ativa })
