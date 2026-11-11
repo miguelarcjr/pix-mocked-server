@@ -140,6 +140,12 @@ export class PSP {
     }
 
     private async _addCob(itm: PixRequest<CobPutRequest | CobVPutRequest>, tipoCob: TipoCob) {
+        const obrigatorios = [['chave', itm.data.chave], ['valor.original', itm.data.valor?.original]].filter(([, v]) => !v);
+        if (obrigatorios.length) {
+            const violacoes = obrigatorios.map(([campo]) => ({ propriedade: `${tipoCob}.${campo}`, razao: `O campo ${tipoCob}.${campo} não respeita o schema.` }));
+            throw new PixError('A cobrança não respeita o schema.', violacoes);
+        }
+
         this.validateRetirada(tipoCob, itm.data.valor);
 
         if (!itm.data.valor.modalidadeAlteracao) {
