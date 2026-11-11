@@ -58,6 +58,17 @@ export class PSP {
         this.loteCobV = MemoryDB.getOrCreate("LOTECOBV", ['id']);
     }
 
+    private locks = new Map<string, Promise<unknown>>();
+
+    /** Serializa operações sobre o mesmo recurso (evita pagamentos/devoluções concorrentes duplicados). */
+    private async exclusive<T>(key: string, fn: () => Promise<T>): Promise<T> {
+        const run = (this.locks.get(key) || Promise.resolve()).catch(() => undefined).then(fn);
+        const tail = run.catch(() => undefined);
+        this.locks.set(key, tail);
+        try { return await run; }
+        finally { if (this.locks.get(key) === tail) { this.locks.delete(key); } }
+    }
+
     private ispb(IdOwner: string): string {
         const own = owners.find(f => f.id === IdOwner) as { id: string, ISPB?: string };
         if (!own) {
@@ -718,6 +729,10 @@ export class PSP {
 
     /** Simula a liquidação de uma cobrança (ATIVA -> CONCLUIDA), gerando o Pix recebido. Exclusivo do mock. */
     async simularPagamento(key: PixKey, body: SimularPagamentoRequest = {}) {
+        return await this.exclusive(`cob:${key.IdOwner}:${key.txid}`, () => this._simularPagamento(key, body));
+    }
+
+    private async _simularPagamento(key: PixKey, body: SimularPagamentoRequest) {
         const cob: any = await this._readCob(key);
         if (!cob) { return null; }
 
@@ -801,6 +816,10 @@ export class PSP {
     }
 
     async addDevolucao(IdOwner: string, endToEndId: string, id: string, data: DevolucaoPutRequest): Promise<IDevolucao> {
+        return await this.exclusive(`pix:${IdOwner}:${endToEndId}`, () => this._addDevolucao(IdOwner, endToEndId, id, data));
+    }
+
+    private async _addDevolucao(IdOwner: string, endToEndId: string, id: string, data: DevolucaoPutRequest): Promise<IDevolucao> {
         const pix = await this.readPix(IdOwner, endToEndId);
         if (!pix) { return null; }
 
