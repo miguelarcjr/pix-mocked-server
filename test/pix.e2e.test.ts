@@ -39,6 +39,12 @@ describe('PIX / WEBHOOK / PAYLOADLOCATION / LOTECOBV', () => {
                 .expect(res => expect(res.body).toMatchObject({ status: 'REMOVIDA_PELO_USUARIO_RECEBEDOR', revisao: 1 }));
         });
 
+        it('PUT sem valor.original / sem chave', async () => {
+            await http.put(`/cobv/${txid()}`, { chave, valor: {}, calendario: { dataDeVencimento: new Date().toJSON() } }).expect(400);
+            await http.put(`/cob/${txid()}`, { valor: { original: "1.00" } }).expect(400)
+                .expect(r => expect(r.body).toMatchObject({ violacoes: [{ propriedade: 'cob.chave' }] }));
+        });
+
         it('PATCH status inválido', async () => {
             const id = await criarCob();
             await http.patch(`/cob/${id}`, { status: 'CONCLUIDA' }).expect(400);
@@ -88,6 +94,20 @@ describe('PIX / WEBHOOK / PAYLOADLOCATION / LOTECOBV', () => {
             await http.post(`/cob/${fixo}/simular-pagamento`, { valor: "11.00" }).expect(400);
             const editavel = await criarCob({ original: "10.00", modalidadeAlteracao: 1 });
             await http.post(`/cob/${editavel}/simular-pagamento`, { valor: "15.50" }).expect(201).expect(res => expect(res.body).toMatchObject({ valor: "15.50" }));
+        });
+
+        it('simular pagamento concorrente gera um único pix', async () => {
+            const id = await criarCob();
+            const res = await Promise.all([1, 2, 3].map(() => http.post(`/cob/${id}/simular-pagamento`)));
+            expect(res.map(r => r.status).sort()).toEqual([201, 400, 400]);
+            await http.get(`/pix?inicio=${inicio}&fim=${fim()}&txid=${id}`).expect(200).expect(r => expect(r.body.pix).toHaveLength(1));
+        });
+
+        it('devoluções concorrentes respeitam o saldo', async () => {
+            const { body: pix } = await http.post(`/cob/${await criarCob({ original: "100.00" })}/simular-pagamento`).expect(201);
+            const res = await Promise.all(['c1', 'c2', 'c3'].map(d => http.put(`/pix/${pix.endToEndId}/devolucao/${d}`, { valor: "40.00" })));
+            expect(res.map(r => r.status).sort()).toEqual([200, 200, 400]);
+            await http.get(`/pix/${pix.endToEndId}`).expect(200).expect(r => expect(r.body.devolucoes).toHaveLength(2));
         });
 
         it('simular pagamento 404', async () => await http.post(`/cob/${txid()}/simular-pagamento`).expect(404));
@@ -240,6 +260,20 @@ describe('PIX / WEBHOOK / PAYLOADLOCATION / LOTECOBV', () => {
                 .expect(r => expect(r.body.cobsv[0].status).toBe('CRIADA'));
             await http.get(`/cobv/${c.txid}`).expect(200).expect(r => expect(r.body).toMatchObject({ valor: { original: "20.00" }, revisao: 1 }));
             await http.patch(`/lotecobv/${lote.id}`, { cobsv: [{ txid: txid(), valor: { original: "20.00" } }] }).expect(400);
+        });
+
+        it('item sem chave é NEGADA e não é persistido', async () => {
+            const { chave: _, ...semChave } = cobv();
+            const { body } = await http.post(`/lotecobv`, { descricao: "sem chave", cobsv: [semChave] }).expect(202);
+            expect(body.cobsv[0]).toMatchObject({ status: 'NEGADA', problema: { violacoes: [{ propriedade: 'cobv.chave' }] } });
+            await http.get(`/cobv/${semChave.txid}`).expect(404);
+        });
+
+        it('PATCH com txid fora do lote não altera as demais cobranças', async () => {
+            const c = cobv();
+            const { body: lote } = await http.post(`/lotecobv`, { descricao: "Lote 3", cobsv: [c] }).expect(202);
+            await http.patch(`/lotecobv/${lote.id}`, { cobsv: [{ txid: c.txid, valor: { original: "30.00" } }, { txid: txid(), valor: { original: "1.00" } }] }).expect(400);
+            await http.get(`/cobv/${c.txid}`).expect(200).expect(r => expect(r.body).toMatchObject({ valor: { original: "10.00" }, revisao: 0 }));
         });
 
         it('400 schema / 404', async () => {

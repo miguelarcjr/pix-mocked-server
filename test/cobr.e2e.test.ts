@@ -116,6 +116,25 @@ describe('REC / COBR / SOLICREC', () => {
             await http.patch(`/cobr/${id}`, { status: 'CANCELADA' }).expect(400);
         });
 
+        it('PATCH calendario mantém a cobrança na listagem', async () => {
+            const r = await criarRec();
+            const id = txid();
+            await http.put(`/cobr/${id}`, cobr(r.idRec)).expect(200);
+            const venc = new Date(Date.now() + 2 * 86400000).toJSON().substring(0, 10);
+            await http.patch(`/cobr/${id}`, { calendario: { dataDeVencimento: venc } }).expect(200)
+                .expect(res => expect(res.body.calendario).toMatchObject({ dataDeVencimento: venc, criacao: expect.any(String) }));
+            const res = await http.get(`/cobr?inicio=${inicio}&fim=${fim()}&idRec=${r.idRec}`).expect(200);
+            expect(res.body.cobsr.map((c: any) => c.txid)).toContain(id);
+        });
+
+        it('POST retentativa 400 após 7 dias do vencimento', async () => {
+            const r = await criarRec();
+            const id = txid();
+            await http.put(`/cobr/${id}`, cobr(r.idRec)).expect(200);
+            const longe = new Date(Date.now() + 30 * 86400000).toJSON().substring(0, 10);
+            await http.post(`/cobr/${id}/retentativa/${longe}`).expect(400);
+        });
+
         it('PATCH /cobr/{txid} 404', async () => await http.patch(`/cobr/${txid()}`, { status: 'CANCELADA' }).expect(404));
 
         it('POST /cobr/{txid}/retentativa/{data} registra a data', async () => {
