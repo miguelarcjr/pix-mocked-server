@@ -486,6 +486,14 @@ export class PSP {
             throw new PixError(`A cobrança recorrente está com status ${curr.status}.`, [{ propriedade: 'cobr.status', razao: 'Não é possível solicitar retentativa para esta cobrança.' }]);
         }
 
+        const vencimento = curr.calendario?.dataDeVencimento?.substring(0, 10);
+        if (vencimento) {
+            const limite = new Date(new Date(vencimento).valueOf() + 7 * 86400000).toJSON().substring(0, 10);
+            if (key.data > limite) {
+                throw new PixError('A data da retentativa excede o prazo da política de retentativa.', [{ propriedade: 'data', razao: `A política PERMITE_3R_7D admite retentativas até ${limite} (7 dias após o vencimento).` }]);
+            }
+        }
+
         const tentativas = curr.tentativas || [];
         if (tentativas.filter((t: any) => t.tipo === TipoTentativa.RetentativaIntradia).length >= 3) {
             throw new PixError('Número máximo de retentativas atingido.', [{ propriedade: 'data', razao: 'A política PERMITE_3R_7D admite no máximo 3 retentativas.' }]);
