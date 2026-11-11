@@ -16,6 +16,17 @@ export function MinStringNumber(min: number, validationOptions?: ValidationOptio
 
 }
 
+export function MinStringNumberUnless(min: number, unless: (obj: any) => boolean, validationOptions?: ValidationOptions) {
+    return function (object: any, propertyName: string) {
+        registerDecorator({
+            target: object.constructor,
+            propertyName: propertyName,
+            options: validationOptions,
+            validator: { validate: (value: string, args) => unless(args.object) || Number.parseFloat(value) >= min },
+        });
+    };
+}
+
 export function IsDICTValid(validationOptions?: ValidationOptions) {
     return function (object: any, propertyName: string) {
         registerDecorator({

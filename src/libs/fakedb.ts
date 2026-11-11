@@ -25,6 +25,19 @@ export class MemoryDB {
         return MemoryDB.collections[collectionName];
     }
 
+    public static getOrCreate(collectionName: string, sortKeys: string[]): MemoryDB {
+        return MemoryDB.collections[collectionName] || MemoryDB.create(collectionName, sortKeys);
+    }
+
+    //Busca em todos os clusters (útil para endpoints públicos, sem IdOwner)
+    async findAny(sortKey: { [name: string]: string | number }): Promise<{ clusterKey: string, data: any } | undefined> {
+        for (const clusterKey of Object.keys(this.cluster)) {
+            const data = await this.read(clusterKey, sortKey);
+            if (data) { return { clusterKey, data }; }
+        }
+        return undefined;
+    }
+
     //Ao menos um item da sortKey deve ser encontrado
     private skCompare = (keys: any[]) => {
         if (!keys.find(f1 => this.sortKeys.find(f2 => f2 === f1))) { throw new Error(MESSAGES.Errors.defaults.INVALID_CONTENT(`${this.name}->sortKey`)) }

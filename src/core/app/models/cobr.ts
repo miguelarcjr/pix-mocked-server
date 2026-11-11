@@ -1,5 +1,5 @@
-import { IsNotEmpty, IsNotEmptyObject, IsNumberString, MaxLength, ValidateNested } from "class-validator"
-import { Chave, ICriacao, Expiracao, IInfoAdicional, Pessoa, PixID, ModalidadeAlteracao, Situacao, PixRevisao, Vencimento, DadosPessoa, DadosConta } from "../models"
+import { IsBoolean, IsIn, IsNotEmpty, IsNotEmptyObject, IsNumberString, Matches, MaxLength, ValidateNested } from "class-validator"
+import { VALOR_PATTERN, RetiradaPix, Chave, ICriacao, Expiracao, IInfoAdicional, Pessoa, PixID, ModalidadeAlteracao, Situacao, PixRevisao, Vencimento, DadosPessoa, DadosConta } from "../models"
 import { Type } from "class-transformer"
 import { IntersectionType } from '@nestjs/swagger';
 import { IsCNPJValid, IsCPFValid, IsDICTExists, IsDICTValid, MinStringNumber } from "../../../validators/custom-validators";
@@ -21,16 +21,41 @@ export class Alteracao {
 }
 
 export class Retirada {
-    retirada?: any
+    @ValidateNested()
+    @Type(() => RetiradaPix)
+    retirada?: RetiradaPix
 }
 
 
-export enum StatusCobR{
-    Aprovada = "APROVADA",
-    Cancelada = "CANCELADA",
+export enum StatusCobR {
     Criada = "CRIADA",
+    Ativa = "ATIVA",
+    Concluida = "CONCLUIDA",
     Expirada = "EXPIRADA",
-    Rejeitada = "REJEITADA"
+    Rejeitada = "REJEITADA",
+    Cancelada = "CANCELADA"
+}
+
+export enum TipoTentativa {
+    Agendada = "AGND",
+    NaoAgendada = "NTAG",
+    RetentativaIntradia = "RIFL"
+}
+
+export enum StatusTentativa {
+    Solicitada = "SOLICITADA",
+    Agendada = "AGENDADA",
+    Paga = "PAGA",
+    Cancelada = "CANCELADA",
+    Rejeitada = "REJEITADA",
+    Expirada = "EXPIRADA"
+}
+
+export class CobRValorOriginal {
+    @IsNotEmpty({ message: 'O campo $$ não respeita o schema.' })
+    @Matches(VALOR_PATTERN, { message: 'O campo $$ não respeita o schema.' })
+    @MinStringNumber(0.01, { message: 'O campo $$ é zero.' })
+    original: string
 }
 
 
@@ -75,6 +100,17 @@ export class CobRPutRequest {
     @ValidateNested({})
     @Type(() => DadosConta)
     contaRecebedor: DadosConta
+
+    @ValidateNested({})
+    @Type(() => CobRValorOriginal)
+    valor?: CobRValorOriginal
+
+    @IsBoolean({ message: 'O campo $$ não respeita o schema.' })
+    ajusteDiaUtil?: boolean
+
+    @ValidateNested({})
+    @Type(() => Pessoa)
+    devedor?: Pessoa
 }
 
 export class CobRPatchRequest {
@@ -91,7 +127,8 @@ export class CobRPatchRequest {
     @Type(() => Pessoa)
     devedor?: Pessoa
     solicitacaoPagador?: string
-    status?: "REMOVIDA_PELO_USUARIO_RECEBEDOR"
+    @IsIn([StatusCobR.Cancelada], { message: 'O campo $$ não respeita o schema.' })
+    status?: StatusCobR.Cancelada
 }
 
 export class CobRPatchResponse extends CobRGetResponse {
@@ -132,7 +169,7 @@ export interface ICobRQueryResponse {
             quantidadeTotalDeItens: number
         }
     },
-    cobs: { $ref: string }[]
+    cobsr: { $ref: string }[]
 }
 
 export class CobRGetFilter {
@@ -143,6 +180,7 @@ export class CobRGetFilter {
     @IsCNPJValid({ message: 'O campo $$ não respeita o schema.' })
     cnpj?: string
     paginacao?: { paginaAtual: number, itensPorPagina: number }
-    status?: Situacao
-    locationPresente?: boolean
+    status?: StatusCobR
+    idRec?: string
+    convenio?: string
 }

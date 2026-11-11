@@ -1,8 +1,8 @@
 import { IsNotEmpty, IsNotEmptyObject, IsNumberString, ValidateNested } from "class-validator"
-import { Chave, ICriacao, Expiracao, IInfoAdicional, Pessoa, PixID, ModalidadeAlteracao, Situacao, PixRevisao } from "../models"
+import { RetiradaPix, Chave, ICriacao, Expiracao, IInfoAdicional, Pessoa, PixID, ModalidadeAlteracao, Situacao, PixRevisao } from "../models"
 import { Type } from "class-transformer"
 import { IntersectionType } from '@nestjs/swagger';
-import { IsCNPJValid,  IsCPFValid, IsDICTExists, IsDICTValid, MinStringNumber } from "../../../validators/custom-validators";
+import { IsCNPJValid,  IsCPFValid, IsDICTExists, IsDICTValid, MinStringNumber, MinStringNumberUnless } from "../../../validators/custom-validators";
 import { LocID, LocGetRequest } from "./loc";
 
 /** 	
@@ -10,7 +10,7 @@ Todos os campos que indicam valores monetários obedecem ao pattern \d{1,10}.\d{
 export class Valor {
     @IsNotEmpty({ message: 'O campo $$ não respeita o schema.' })
     @IsNumberString({}, { message: 'O campo $$ não respeita o schema.' })
-    @MinStringNumber(0.01, { message: 'O campo $$ é zero.' })
+    @MinStringNumberUnless(0.01, (o) => !!o?.retirada?.saque, { message: 'O campo $$ é zero.' })
     original: string
 }
 
@@ -20,7 +20,9 @@ export class Alteracao {
 }
 
 export class Retirada {
-    retirada?: any
+    @ValidateNested()
+    @Type(() => RetiradaPix)
+    retirada?: RetiradaPix
 }
 
 
